@@ -1,34 +1,29 @@
-import pandas as pd
-import csv
 import requests
+import csv
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 API_KEY = os.getenv('API_KEY')
+PLAYLIST_ID = os.getenv('PLAYLIST_ID')
+video_urls = []
 
-video_list = pd.read_csv("video_urls.csv", header=None)[0].tolist()
-video_ids = [url.split('v=')[-1] for url in video_list if 'v=' in url]
+url = f'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={PLAYLIST_ID}&key={API_KEY}&maxResults=50'
 
-video_informations = []
-
-# 50本ずつ分割してAPIリクエスト
-for i in range(0, len(video_ids), 50):
-    ids = ','.join(video_ids[i:i+50])
-    api_url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&id={ids}&key={API_KEY}"
-    response = requests.get(api_url)
+while url:
+    response = requests.get(url)
     data = response.json()
-    for item in data.get('items', []):
-        snippet = item['snippet']
-        title = snippet.get('title', '')
-        published = snippet.get('publishedAt', '')
-        description = snippet.get('description', '')
-        video_informations.append((title, published, description))
-        print(f"Title: {title}")
-        print(f"published: {published}")
-        print(f"description: {description}")
 
-with open('video_informations.csv', 'w', newline='') as file:
+    for item in data['items']:
+        video_id = item['snippet']['resourceId']['videoId']
+        video_url = f'https://www.youtube.com/watch?v={video_id}'
+        video_urls.append(video_url)
+
+    # 次のページがある場合はURLを更新
+    url = f'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={PLAYLIST_ID}&key={API_KEY}&maxResults=50&pageToken={data.get("nextPageToken", "")}' if 'nextPageToken' in data else None
+
+# CSVに保存
+with open('video_urls.csv', 'w', newline='') as file:
     writer = csv.writer(file)
-    for info in video_informations:
-        writer.writerow([info[0], info[1], info[2]])
+    for url in video_urls:
+        writer.writerow([url])
